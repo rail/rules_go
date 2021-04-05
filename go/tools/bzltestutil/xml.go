@@ -19,16 +19,10 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"path"
 	"sort"
 	"strings"
 	"time"
 )
-
-type xmlTestSuites struct {
-	XMLName xml.Name       `xml:"testsuites"`
-	Suites  []xmlTestSuite `xml:"testsuite"`
-}
 
 type xmlTestSuite struct {
 	XMLName   xml.Name      `xml:"testsuite"`
@@ -43,7 +37,6 @@ type xmlTestSuite struct {
 
 type xmlTestCase struct {
 	XMLName   xml.Name    `xml:"testcase"`
-	Classname string      `xml:"classname,attr"`
 	Name      string      `xml:"name,attr"`
 	Time      string      `xml:"time,attr"`
 	Failure   *xmlMessage `xml:"failure,omitempty"`
@@ -131,7 +124,7 @@ func json2xml(r io.Reader, pkgName string) ([]byte, error) {
 	return xml.MarshalIndent(toXML(pkgName, pkgDuration, testcases), "", "\t")
 }
 
-func toXML(pkgName string, pkgDuration *float64, testcases map[string]*testCase) *xmlTestSuites {
+func toXML(pkgName string, pkgDuration *float64, testcases map[string]*testCase) *xmlTestSuite {
 	cases := make([]string, 0, len(testcases))
 	for k := range testcases {
 		cases = append(cases, k)
@@ -148,7 +141,6 @@ func toXML(pkgName string, pkgDuration *float64, testcases map[string]*testCase)
 		suite.Tests++
 		newCase := xmlTestCase{
 			Name:      name,
-			Classname: path.Base(pkgName),
 		}
 		if c.duration != nil {
 			newCase.Time = fmt.Sprintf("%.3f", *c.duration)
@@ -177,5 +169,5 @@ func toXML(pkgName string, pkgDuration *float64, testcases map[string]*testCase)
 		}
 		suite.TestCases = append(suite.TestCases, newCase)
 	}
-	return &xmlTestSuites{Suites: []xmlTestSuite{suite}}
+	return &suite
 }
