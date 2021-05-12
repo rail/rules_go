@@ -284,7 +284,16 @@ func compileArchive(
 				return err
 			}
 		}
-		gcFlags = append(gcFlags, "-trimpath=.")
+		subDir := filepath.Join(workDir, packagePath)
+		err := os.MkdirAll(subDir, 0755)
+		if err != nil {
+			return err
+		}
+		goBases, err := gatherSrcs(subDir, goSrcs)
+		for i, base := range goBases {
+			goSrcs[i] = filepath.Join(subDir, base)
+		}
+		gcFlags = append(gcFlags, "-trimpath="+workDir)
 	}
 
 	// Check that the filtered sources don't import anything outside of
