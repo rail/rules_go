@@ -68,9 +68,16 @@ def go_proto_compile(go, compiler, protos, imports, importpath):
     go_srcs = []
     outpath = None
     proto_paths = {}
+    proto_sources = []
     desc_sets = []
+    transtitive_sources = []
+    transtitive_include_paths = []
     for proto in protos:
+        for p in proto.direct_sources:
+            proto_sources.append(p.path)
         desc_sets.append(proto.transitive_descriptor_sets)
+        transtitive_sources.append(proto.transitive_sources)
+        transtitive_include_paths.extend(proto.transitive_proto_path.to_list())
         for src in proto.check_deps_sources.to_list():
             path = proto_path(src, proto)
             if path in proto_paths:
@@ -93,6 +100,7 @@ def go_proto_compile(go, compiler, protos, imports, importpath):
                 outpath = out.dirname[:-len(importpath)]
 
     transitive_descriptor_sets = depset(direct = [], transitive = desc_sets)
+    transitive_sources = depset(direct = [], transitive = transtitive_sources)
 
     args = go.actions.args()
     args.add("-protoc", compiler.internal.protoc)
@@ -104,10 +112,18 @@ def go_proto_compile(go, compiler, protos, imports, importpath):
     args.add_all(compiler.internal.options, before_each = "-option")
     if compiler.internal.import_path_option:
         args.add_all([importpath], before_each = "-option", format_each = "import_path=%s")
-    args.add_all(transitive_descriptor_sets, before_each = "-descriptor_set")
+    if compiler.internal.transitive_sources_option:
+        args.add_all(transtitive_include_paths, before_each = "-include")
+    else:
+        args.add_all(transitive_descriptor_sets, before_each = "-descriptor_set")
     args.add_all(go_srcs, before_each = "-expected")
     args.add_all(imports, before_each = "-import")
-    args.add_all(proto_paths.keys())
+    if compiler.internal.prefix_args_option:
+        args.add_all(compiler.internal.prefix_args_option, before_each = "-prefix-arg")
+    if compiler.internal.input_source_paths_option:
+        args.add_all(proto_sources)
+    else:
+        args.add_all(proto_paths.keys())
     go.actions.run(
         inputs = depset(
             direct = [
@@ -115,7 +131,7 @@ def go_proto_compile(go, compiler, protos, imports, importpath):
                 compiler.internal.protoc,
                 compiler.internal.plugin,
             ],
-            transitive = [transitive_descriptor_sets],
+            transitive = [transitive_descriptor_sets, transitive_sources],
         ),
         outputs = go_srcs,
         progress_message = "Generating into %s" % go_srcs[0].dirname,
@@ -184,10 +200,13 @@ def _go_proto_compiler_impl(ctx):
             internal = struct(
                 options = ctx.attr.options,
                 suffix = ctx.attr.suffix,
-                protoc = ctx.executable._protoc,
+                protoc = ctx.executable.protoc,
                 go_protoc = ctx.executable._go_protoc,
                 plugin = ctx.executable.plugin,
                 import_path_option = ctx.attr.import_path_option,
+                prefix_args_option = ctx.attr.prefix_args_option,
+                transitive_sources_option = ctx.attr.transitive_sources_option,
+                input_source_paths_option = ctx.attr.input_source_paths_option,
             ),
         ),
         library,
@@ -202,6 +221,9 @@ _go_proto_compiler = rule(
         "suffix": attr.string(default = ".pb.go"),
         "valid_archive": attr.bool(default = True),
         "import_path_option": attr.bool(default = False),
+        "prefix_args_option": attr.string_list(default = []),
+        "transitive_sources_option": attr.bool(default = False, doc = "pass proto compiler transitive sources instead of descriptor sets"),
+        "input_source_paths_option": attr.bool(default = False, doc = "pass protoc compiler actual paths to source files, not their import paths"),
         "plugin": attr.label(
             executable = True,
             cfg = "exec",
@@ -212,7 +234,7 @@ _go_proto_compiler = rule(
             cfg = "exec",
             default = "//go/tools/builders:go-protoc",
         ),
-        "_protoc": attr.label(
+        "protoc": attr.label(
             executable = True,
             cfg = "exec",
             default = "@com_google_protobuf//:protoc",
