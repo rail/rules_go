@@ -49,6 +49,8 @@ func run(args []string) error {
 	descriptors := multiFlag{}
 	expected := multiFlag{}
 	imports := multiFlag{}
+	includes := multiFlag{}
+	prefix_args := multiFlag{}
 	flags := flag.NewFlagSet("protoc", flag.ExitOnError)
 	protoc := flags.String("protoc", "", "The path to the real protoc.")
 	outPath := flags.String("out_path", "", "The base output path to write to.")
@@ -56,8 +58,10 @@ func run(args []string) error {
 	importpath := flags.String("importpath", "", "The importpath for the generated sources.")
 	flags.Var(&options, "option", "The plugin options.")
 	flags.Var(&descriptors, "descriptor_set", "The descriptor set to read.")
+	flags.Var(&includes, "include", "The descriptor set to read.")
 	flags.Var(&expected, "expected", "The expected output files.")
 	flags.Var(&imports, "import", "Map a proto file to an import path.")
+	flags.Var(&prefix_args, "prefix-arg", "args to pass to protoc before normal options")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -83,17 +87,25 @@ func run(args []string) error {
 		// This is required to work with long paths on Windows.
 		*plugin = "\\\\?\\" + abs(*plugin)
 	}
-	protoc_args := []string{
+	protoc_args := append(prefix_args,
 		fmt.Sprintf("--%v_out=%v:%v", pluginName, strings.Join(options, ","), tmpDir),
 		"--plugin", fmt.Sprintf("%v=%v", strings.TrimSuffix(pluginBase, ".exe"), *plugin),
-		"--descriptor_set_in", strings.Join(descriptors, string(os.PathListSeparator)),
+	)
+
+	if len(descriptors) > 0 {
+		protoc_args = append(protoc_args,
+			"--descriptor_set_in", strings.Join(descriptors, string(os.PathListSeparator)))
+	}
+
+	for _, m := range includes {
+		protoc_args = append(protoc_args, fmt.Sprintf("-I%s", m))
 	}
 	protoc_args = append(protoc_args, flags.Args()...)
 	cmd := exec.Command(*protoc, protoc_args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("error running protoc: %v", err)
+		return fmt.Errorf("error running '%s %s': %v", *protoc, strings.Join(protoc_args, " "), err)
 	}
 	// Build our file map, and test for existance
 	files := map[string]*genFileInfo{}
