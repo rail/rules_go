@@ -55,6 +55,23 @@ go_test(
     ],
 )
 
+# extra_sources_test
+go_proto_library(
+    name = "extra_go_proto",
+    go_srcs = ["extra.go"],
+    importpath = "github.com/bazelbuild/rules_go/tests/core/go_proto_library/foo",
+    proto = ":foo_proto",
+)
+
+go_test(
+    name = "extra_sources_test",
+    srcs = ["embed_test.go"],
+    deps = [
+        ":extra_go_proto",
+        "@com_github_golang_protobuf//proto:go_default_library",
+    ],
+)
+
 # transitive_test
 go_proto_library(
     name = "transitive_go_proto",

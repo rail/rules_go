@@ -242,6 +242,13 @@ Attributes
 | protoc plugins used to generate Go code. See `Predefined plugins`_ for                       |
 | some options.                                                                                |
 +---------------------+----------------------+-------------------------------------------------+
+| :param:`go_srcs`    | :type:`label_list`   | :value:`[]` |
++---------------------+----------------------+-------------------------------------------------+
+| List of Go additional source files that are compiled with the generated sources.             |
+| This can be useful if the generated souces depend on these sources, but as an alternative to |
+| `embed` which does not require defining a separate go_library for for these sources, as they |
+| may be unable to build on their own i.e. if they reference symbols in the generated sources. |
++---------------------+----------------------+-------------------------------------------------+
 
 Example: Basic proto
 ^^^^^^^^^^^^^^^^^^^^
