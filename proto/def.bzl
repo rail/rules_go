@@ -31,6 +31,13 @@ load(
     "@rules_proto//proto:defs.bzl",
     "ProtoInfo",
 )
+load(
+    "//go/private:common.bzl",
+    "asm_exts",
+    "cgo_exts",
+    "go_exts",
+    "as_iterable",
+)
 
 GoProtoImports = provider()
 
@@ -98,7 +105,7 @@ def _go_proto_library_impl(ctx):
             fail("Either proto or protos (non-empty) argument must be specified")
         proto_deps = ctx.attr.protos
 
-    go_srcs = []
+    go_srcs = [f for t in ctx.attr.go_srcs for f in as_iterable(t.files)]
     valid_archive = False
 
     for c in compilers:
@@ -146,6 +153,7 @@ go_proto_library = rule(
             providers = [GoLibrary],
             aspects = [_go_proto_aspect],
         ),
+        "go_srcs": attr.label_list(allow_files = go_exts + asm_exts + cgo_exts, default = []),
         "importpath": attr.string(),
         "importmap": attr.string(),
         "importpath_aliases": attr.string_list(),  # experimental, undocumented
