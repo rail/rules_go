@@ -58,6 +58,19 @@ func shouldAddTestV() bool {
 	return false
 }
 
+// shouldOutputJSON indicates if the test wrapper should print test output in
+// JSON format, similar to `go test -json`
+func shouldOutputJSON() bool {
+	if jsonEnv, ok := os.LookupEnv("GO_TEST_JSON_OUTPUT"); ok {
+		jsonBool, err := strconv.ParseBool(jsonEnv)
+		if err != nil {
+			log.Fatalf("invalid value for GO_TEST_JSON_OUTPUT: %q", jsonEnv)
+		}
+		return jsonBool
+	}
+	return false
+}
+
 func Wrap(pkg string) error {
 	var jsonBuffer bytes.Buffer
 	jsonConverter := NewConverter(&jsonBuffer, pkg, Timestamp)
@@ -74,6 +87,12 @@ func Wrap(pkg string) error {
 	cmd.Env = append(os.Environ(), "GO_TEST_WRAP=0")
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = io.MultiWriter(os.Stdout, jsonConverter)
+	if shouldOutputJSON() {
+		// Output to stdout using test2json format as defined in https://pkg.go.dev/cmd/test2json#hdr-Output_Format
+		stdoutJSONConverter := NewConverter(os.Stdout, pkg, Timestamp)
+		cmd.Stdout = io.MultiWriter(stdoutJSONConverter, jsonConverter)
+		defer stdoutJSONConverter.Close()
+	}
 	err := cmd.Run()
 	jsonConverter.Close()
 	if out, ok := os.LookupEnv("XML_OUTPUT_FILE"); ok {
