@@ -358,6 +358,7 @@ func compileArchive(
 			goSrcs[i] = filepath.Join(subDir, base)
 		}
 		gcFlags = append(gcFlags, "-trimpath="+workDir)
+		gcFlags = append(gcFlags, "-trimpath=.")
 	}
 
 	// Check that the filtered sources don't import anything outside of
