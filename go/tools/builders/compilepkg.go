@@ -330,24 +330,38 @@ func compileArchive(
 	// If we have cgo, generate separate C and go files, and compile the
 	// C files.
 	var objFiles []string
+	var goSrcsMapping []pathPair
 	if cgoEnabled && haveCgo {
 		// TODO(#2006): Compile .s and .S files with cgo2, not the Go assembler.
 		// If cgo is not enabled or we don't have other cgo sources, don't
 		// compile .S files.
 		var srcDir string
-		srcDir, goSrcs, objFiles, err = cgo2(goenv, goSrcs, cgoSrcs, cSrcs, cxxSrcs, objcSrcs, objcxxSrcs, nil, hSrcs, packagePath, packageName, cc, cppFlags, cFlags, cxxFlags, objcFlags, objcxxFlags, ldFlags, cgoExportHPath)
+		srcDir, goSrcsMapping, objFiles, err = cgo2(goenv, goSrcs, cgoSrcs, cSrcs, cxxSrcs, objcSrcs, objcxxSrcs, nil, hSrcs, packagePath, packageName, cc, cppFlags, cFlags, cxxFlags, objcFlags, objcxxFlags, ldFlags, cgoExportHPath)
 		if err != nil {
 			return err
 		}
+		goSrcs = make([]string, len(goSrcsMapping))
+		for i, v := range goSrcsMapping {
+			goSrcs[i] = v.workingPath
+		}
 
-		gcFlags = append(gcFlags, createTrimPath(gcFlags, srcDir))
+		gcFlags = append(gcFlags, fmt.Sprintf("-trimpath=%s=>%s", abs(srcDir), packagePath))
 	} else {
 		if cgoExportHPath != "" {
 			if err := ioutil.WriteFile(cgoExportHPath, nil, 0o666); err != nil {
 				return err
 			}
 		}
-		gcFlags = append(gcFlags, createTrimPath(gcFlags, "."))
+		// We want the source files to show up (e.g. in stack traces) with the package
+		// path. We use -trimpath to replace the root path with the correct prefix
+		// of the package path.
+		root := abs(".")
+		relSrcPath, err := filepath.Rel(root, srcs.goSrcs[0].filename)
+		if err != nil {
+			return err
+		}
+		rootPkgPath := filepath.Clean(strings.TrimSuffix(packagePath, filepath.Dir(relSrcPath)))
+		gcFlags = append(gcFlags, fmt.Sprintf("-trimpath=%s=>%s", root, rootPkgPath))
 	}
 
 	// Check that the filtered sources don't import anything outside of
@@ -475,7 +489,7 @@ func compileArchive(
 	}
 
 	// Compile the filtered .go files.
-	if err := compileGo(goenv, goSrcs, packagePath, importcfgPath, embedcfgPath, asmHdrPath, symabisPath, gcFlags, outPath); err != nil {
+	if err := compileGo(goenv, goSrcs, packagePath, importcfgPath, embedcfgPath, asmHdrPath, symabisPath, gcFlags, goSrcsMapping, outPath); err != nil {
 		return err
 	}
 
@@ -545,7 +559,7 @@ func compileArchive(
 	return appendFiles(goenv, outXPath, []string{pkgDefPath})
 }
 
-func compileGo(goenv *env, srcs []string, packagePath, importcfgPath, embedcfgPath, asmHdrPath, symabisPath string, gcFlags []string, outPath string) error {
+func compileGo(goenv *env, srcs []string, packagePath, importcfgPath, embedcfgPath, asmHdrPath, symabisPath string, gcFlags []string, paths []pathPair, outPath string) error {
 	args := goenv.goTool("compile")
 	args = append(args, "-p", packagePath, "-importcfg", importcfgPath, "-pack")
 	if embedcfgPath != "" {
@@ -561,8 +575,8 @@ func compileGo(goenv *env, srcs []string, packagePath, importcfgPath, embedcfgPa
 	args = append(args, "-o", outPath)
 	args = append(args, "--")
 	args = append(args, srcs...)
-	absArgs(args, []string{"-I", "-o", "-trimpath", "-importcfg"})
-	return goenv.runCommand(args)
+	absArgs(args, []string{"-I", "-o", "-importcfg"})
+	return goenv.runCommandAndReplacePaths(args, paths)
 }
 
 func runNogo(ctx context.Context, workDir string, nogoPath string, srcs []string, deps []archive, packagePath, importcfgPath, outFactsPath string) error {
