@@ -37,18 +37,20 @@ def emit_stdlib(go):
     source = go.library_to_source(go, {}, library, False)
     return [source, library]
 
-def _stdlib_library_to_source(go, attr, source, merge):
+def _stdlib_library_to_source(go, _attr, source, _merge):
     if _should_use_sdk_stdlib(go):
         source["stdlib"] = _sdk_stdlib(go)
     else:
         source["stdlib"] = _build_stdlib(go)
 
 def _should_use_sdk_stdlib(go):
-    return (go.mode.goos == go.sdk.goos and
+    return (go.sdk.libs and  # go.sdk.libs is non-empty if sdk ships with precompiled .a files
+            go.mode.goos == go.sdk.goos and
             go.mode.goarch == go.sdk.goarch and
             not go.mode.race and  # TODO(jayconrod): use precompiled race
             not go.mode.msan and
             not go.mode.pure and
+            not go.sdk.experiments and
             go.mode.link == LINKMODE_NORMAL)
 
 def _build_stdlib_list_json(go):
@@ -79,6 +81,7 @@ def _build_stdlib(go):
     args.add("-out", pkg.dirname)
     if go.mode.race:
         args.add("-race")
+    args.add_all(go.sdk.experiments, before_each = "-experiment")
     args.add_all(link_mode_args(go.mode))
     env = go.env
     if go.mode.pure:

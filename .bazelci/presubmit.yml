@@ -2,7 +2,7 @@
 tasks:
   ubuntu1804_bazel400:
     platform: ubuntu1804
-    bazel: 5.1.0 # test minimum supported version of bazel
+    bazel: 5.3.0 # test minimum supported version of bazel
     shell_commands:
       - tests/core/cgo/generate_imported_dylib.sh
     build_targets:
@@ -24,14 +24,11 @@ tasks:
   ubuntu2004_bcr_tests:
     name: BCR test module
     platform: ubuntu2004
-    bazel: 6.0.0rc2
     working_directory: tests/bcr
     build_flags:
       - "--allow_yanked_versions=all"
-      - "--experimental_enable_bzlmod"
     test_flags:
       - "--allow_yanked_versions=all"
-      - "--experimental_enable_bzlmod"
     build_targets:
       - "//..."
       - "@go_sdk//..."
@@ -343,6 +340,9 @@ tasks:
     name: Examples test on Ubuntu
     platform: ubuntu2004
     working_directory: examples/basic-gazelle
+    build_flags:
+      - "--incompatible_config_setting_private_default_visibility"
+      - "--incompatible_enforce_config_setting_visibility"
     build_targets:
       - "//..."
     test_targets:
@@ -351,14 +351,20 @@ tasks:
     name: Examples test on MacOS
     platform: macos
     working_directory: examples/basic-gazelle
+    build_flags:
+      - "--incompatible_config_setting_private_default_visibility"
+      - "--incompatible_enforce_config_setting_visibility"
     build_targets:
     - "//..."
     test_targets:
     - "//..."
   windows_examples:
-    platform: windows
     name: Examples test on Windows
+    platform: windows
+    working_directory: examples/basic-gazelle
     build_flags:
+    - "--incompatible_config_setting_private_default_visibility"
+    - "--incompatible_enforce_config_setting_visibility"
     # Go requires a C toolchain that accepts options and emits errors like
     # gcc or clang. The Go SDK does not support MSVC.
     - "--cpu=x64_windows"
@@ -370,7 +376,6 @@ tasks:
     - "--host_platform=@io_bazel_rules_go//go/toolchain:windows_amd64_cgo"
     - "--platforms=@io_bazel_rules_go//go/toolchain:windows_amd64_cgo"
     - "--incompatible_enable_cc_toolchain_resolution"
-    working_directory: examples/basic-gazelle
     build_targets:
     - "//..."
     test_targets:

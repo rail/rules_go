@@ -69,16 +69,6 @@ cgo_exts = [
     ".mm",
 ]
 
-def pkg_dir(workspace_root, package_name):
-    """Returns a path to a package directory from the root of the sandbox."""
-    if workspace_root and package_name:
-        return workspace_root + "/" + package_name
-    if workspace_root:
-        return workspace_root
-    if package_name:
-        return package_name
-    return "."
-
 def split_srcs(srcs):
     """Returns a struct of sources, divided by extension."""
     sources = struct(
@@ -179,7 +169,7 @@ def get_versioned_shared_lib_extension(path):
     # something like 1.2.3, or so.1.2, or dylib.1.2, or foo.1.2
     return ""
 
-MINIMUM_BAZEL_VERSION = "5.1.0"
+MINIMUM_BAZEL_VERSION = "5.3.0"
 
 def as_list(v):
     """Returns a list, tuple, or depset as a list."""

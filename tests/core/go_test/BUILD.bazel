@@ -243,3 +243,13 @@ go_test(
         "@io_bazel_rules_go//go/tools/bazel",
     ],
 )
+
+go_bazel_test(
+    name = "env_inherit_test",
+    srcs = ["env_inherit_test.go"],
+)
+
+go_bazel_test(
+    name = "binary_env_test",
+    srcs = ["binary_env_test.go"],
+)

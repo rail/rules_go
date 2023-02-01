@@ -122,13 +122,28 @@ def _go_binary_impl(ctx):
         executable = executable,
     )
 
+    providers = [
+        library,
+        source,
+        archive,
+        OutputGroupInfo(
+            cgo_exports = archive.cgo_exports,
+            compilation_outputs = [archive.data.file],
+        ),
+    ]
+
     if go.mode.link in LINKMODES_EXECUTABLE:
+        env = {}
+        for k, v in ctx.attr.env.items():
+            env[k] = ctx.expand_location(v, ctx.attr.data)
+        providers.append(RunEnvironmentInfo(environment = env))
+
         # The executable is automatically added to the runfiles.
-        default_info = DefaultInfo(
+        providers.append(DefaultInfo(
             files = depset([executable]),
             runfiles = runfiles,
             executable = executable,
-        )
+        ))
     else:
         # Workaround for https://github.com/bazelbuild/bazel/issues/15043
         # As of Bazel 5.1.1, native rules do not pick up the "files" of a data
@@ -136,22 +151,11 @@ def _go_binary_impl(ctx):
         # non-data dependents should not pick up the executable as a runfile
         # implicitly, the deprecated "default_runfiles" and "data_runfiles"
         # constructor parameters have to be used.
-        default_info = DefaultInfo(
+        providers.append(DefaultInfo(
             files = depset([executable]),
             default_runfiles = runfiles,
             data_runfiles = runfiles.merge(ctx.runfiles([executable])),
-        )
-
-    providers = [
-        library,
-        source,
-        archive,
-        default_info,
-        OutputGroupInfo(
-            cgo_exports = archive.cgo_exports,
-            compilation_outputs = [archive.data.file],
-        ),
-    ]
+        ))
 
     # If the binary's linkmode is c-archive or c-shared, expose CcInfo
     if go.cgo_tools and go.mode.link in (LINKMODE_C_ARCHIVE, LINKMODE_C_SHARED):
@@ -232,6 +236,13 @@ _go_binary_kwargs = {
             or a subdirectory as source files. All source files containing `//go:embed`
             directives must be in the same logical directory. It's okay to mix static and
             generated source files and static and generated embeddable files.
+            """,
+        ),
+        "env": attr.string_dict(
+            doc = """Environment variables to set when the binary is executed with bazel run.
+            The values (but not keys) are subject to
+            [location expansion](https://docs.bazel.build/versions/main/skylark/macros.html) but not full
+            [make variable expansion](https://docs.bazel.build/versions/main/be/make-variables.html).
             """,
         ),
         "importpath": attr.string(
@@ -415,11 +426,15 @@ def _go_tool_binary_impl(ctx):
     if sdk.goos == "windows":
         name += ".exe"
 
-    cout = ctx.actions.declare_file(name + ".a")
+    out = ctx.actions.declare_file(name)
     if sdk.goos == "windows":
-        cmd = "@echo off\n {go} tool compile -o {cout} -trimpath=%cd% {srcs}".format(
+        gopath = ctx.actions.declare_directory("gopath")
+        gocache = ctx.actions.declare_directory("gocache")
+        cmd = "@echo off\nset GOCACHE=%cd%\\{gocache}\nset GOPATH=%cd%\\{gopath}\n{go} build -o {out} -trimpath {srcs}".format(
+            gopath = gopath.path,
+            gocache = gocache.path,
             go = sdk.go.path.replace("/", "\\"),
-            cout = cout.path,
+            out = out.path,
             srcs = " ".join([f.path for f in ctx.files.srcs]),
         )
         bat = ctx.actions.declare_file(name + ".bat")
@@ -429,38 +444,23 @@ def _go_tool_binary_impl(ctx):
         )
         ctx.actions.run(
             executable = bat,
-            inputs = sdk.libs + sdk.headers + sdk.tools + ctx.files.srcs + [sdk.go],
-            outputs = [cout],
-            env = {"GOROOT": sdk.root_file.dirname},  # NOTE(#2005): avoid realpath in sandbox
-            mnemonic = "GoToolchainBinaryCompile",
+            inputs = sdk.headers + sdk.tools + sdk.srcs + ctx.files.srcs + [sdk.go],
+            outputs = [out, gopath, gocache],
+            mnemonic = "GoToolchainBinaryBuild",
         )
     else:
-        cmd = "{go} tool compile -o {cout} -trimpath=$PWD {srcs}".format(
+        # Note: GOPATH is needed for Go 1.16.
+        cmd = "GOCACHE=$(mktemp -d) GOPATH=$(mktemp -d) {go} build -o {out} -trimpath {srcs}".format(
             go = sdk.go.path,
-            cout = cout.path,
+            out = out.path,
             srcs = " ".join([f.path for f in ctx.files.srcs]),
         )
         ctx.actions.run_shell(
             command = cmd,
-            inputs = sdk.libs + sdk.headers + sdk.tools + ctx.files.srcs + [sdk.go],
-            outputs = [cout],
-            env = {"GOROOT": sdk.root_file.dirname},  # NOTE(#2005): avoid realpath in sandbox
-            mnemonic = "GoToolchainBinaryCompile",
+            inputs = sdk.headers + sdk.tools + sdk.srcs + sdk.libs + ctx.files.srcs + [sdk.go],
+            outputs = [out],
+            mnemonic = "GoToolchainBinaryBuild",
         )
-
-    out = ctx.actions.declare_file(name)
-    largs = ctx.actions.args()
-    largs.add_all(["tool", "link"])
-    largs.add("-o", out)
-    largs.add(cout)
-    ctx.actions.run(
-        executable = sdk.go,
-        arguments = [largs],
-        inputs = sdk.libs + sdk.headers + sdk.tools + [cout],
-        outputs = [out],
-        env = {"GOROOT_FINAL": "GOROOT"},  # Suppress go root paths to keep the output reproducible.
-        mnemonic = "GoToolchainBinary",
-    )
 
     return [DefaultInfo(
         files = depset([out]),

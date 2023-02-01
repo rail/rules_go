@@ -1,12 +1,11 @@
 workspace(name = "io_bazel_rules_go")
 
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_dependencies")
 
 go_rules_dependencies()
 
-go_register_toolchains(version = "1.18.3")
+go_register_toolchains(version = "1.19.4")
 
 http_archive(
     name = "com_google_protobuf",
@@ -28,13 +27,11 @@ load("@io_bazel_rules_go//extras:embed_data_deps.bzl", "go_embed_data_dependenci
 go_embed_data_dependencies()
 
 # Used by //tests:buildifier_test.
-# Latest release is not compatible with the incompatible bazel flags we use
-# in CI, in particular, --incompatible_load_proto_rules_from_bzl.
-git_repository(
+http_archive(
     name = "com_github_bazelbuild_buildtools",
-    commit = "f630fda6c1db92241fee1ff66ca07018b2c7a5f3",  # master as of 2020-02-03
-    remote = "https://github.com/bazelbuild/buildtools",
-    shallow_since = "1580754619 +0100",
+    sha256 = "05eff86c1d444dde18d55ac890f766bce5e4db56c180ee86b5aacd6704a5feb9",
+    strip_prefix = "buildtools-6.0.0",
+    urls = ["https://github.com/bazelbuild/buildtools/archive/refs/tags/6.0.0.tar.gz"],
 )
 
 # For manual testing against an LLVM toolchain.
@@ -77,10 +74,10 @@ bazel_skylib_workspace()
 
 http_archive(
     name = "bazel_gazelle",
-    sha256 = "501deb3d5695ab658e82f6f6f549ba681ea3ca2a5fb7911154b5aa45596183fa",
+    sha256 = "ecba0f04f96b4960a5b250c8e8eeec42281035970aa8852dda73098274d14a1d",
     urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/bazel-gazelle/releases/download/v0.26.0/bazel-gazelle-v0.26.0.tar.gz",
-        "https://github.com/bazelbuild/bazel-gazelle/releases/download/v0.26.0/bazel-gazelle-v0.26.0.tar.gz",
+        "https://mirror.bazel.build/github.com/bazelbuild/bazel-gazelle/releases/download/v0.29.0/bazel-gazelle-v0.29.0.tar.gz",
+        "https://github.com/bazelbuild/bazel-gazelle/releases/download/v0.29.0/bazel-gazelle-v0.29.0.tar.gz",
     ],
 )
 
@@ -133,8 +130,6 @@ go_repository(
 # gazelle:repository go_repository name=org_golang_x_sys     importpath=golang.org/x/sys
 # gazelle:repository go_repository name=org_golang_x_crypto  importpath=golang.org/x/crypto
 
-gazelle_dependencies()
-
 load("@io_bazel_rules_go//tests/legacy/test_chdir:remote.bzl", "test_chdir_remote")
 
 test_chdir_remote()
@@ -147,6 +142,8 @@ load("@io_bazel_rules_go//tests:grpc_repos.bzl", "grpc_dependencies")
 
 grpc_dependencies()
 
+gazelle_dependencies()
+
 local_repository(
     name = "runfiles_remote_test",
     path = "tests/core/runfiles/runfiles_remote_test",
@@ -157,10 +154,10 @@ local_repository(
 # so we declare it in the WORKSPACE
 http_archive(
     name = "io_bazel_stardoc",
-    sha256 = "c9794dcc8026a30ff67cf7cf91ebe245ca294b20b071845d12c192afe243ad72",
+    sha256 = "3fd8fec4ddec3c670bd810904e2e33170bedfe12f90adf943508184be458c8bb",
     urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/stardoc/releases/download/0.5.0/stardoc-0.5.0.tar.gz",
-        "https://github.com/bazelbuild/stardoc/releases/download/0.5.0/stardoc-0.5.0.tar.gz",
+        "https://mirror.bazel.build/github.com/bazelbuild/stardoc/releases/download/0.5.3/stardoc-0.5.3.tar.gz",
+        "https://github.com/bazelbuild/stardoc/releases/download/0.5.3/stardoc-0.5.3.tar.gz",
     ],
 )
 
