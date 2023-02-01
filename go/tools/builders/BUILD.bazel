@@ -95,7 +95,7 @@ go_source(
         "@co_honnef_go_tools//unused",
         "@org_golang_x_tools//go/analysis",
         "@org_golang_x_tools//go/gcexportdata",
-        "@org_golang_x_tools//internal/facts",
+        #"@org_golang_x_tools//internal/facts",
     ],
 )
 
